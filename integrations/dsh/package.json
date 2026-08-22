@@ -1,0 +1,17 @@
+{
+  "name": "@teleport/dsh",
+  "version": "0.2.0",
+  "description": "teleport integration for DeepSeek Harness \u2014 makes a dsh session reachable from other agent sessions",
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

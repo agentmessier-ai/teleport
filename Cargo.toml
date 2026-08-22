@@ -1,0 +1,97 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tp-app",
+    "crates/tp-core",
+    "crates/tp-db",
+    "crates/tp-ingest",
+    "crates/tp-search",
+    "crates/tp-watch",
+    "crates/tp-reach",
+    "crates/tp-net",
+    "crates/tp",
+]
+
+[workspace.package]
+# Bump this when cutting a release, and only then. It is the number a user has
+# to be able to say — "this happens on 0.2.0" is a bug report; "this happens on
+# 0.1.0 (a4f0988)" is a git archaeology request, and 0.1.0 was every build from
+# the first commit to 2026-08-21 regardless of what changed.
+#
+# `VERSION_LINE` still carries the commit sha beside it, which stays the precise
+# answer. This is the one a person can repeat from memory.
+#
+# Three JSON manifests carry a version too — plugin/.claude-plugin/plugin.json,
+# .claude-plugin/marketplace.json and integrations/dsh/package.json. They are
+# kept at the same number so a reader is never asked which one is "the" version,
+# but nothing enforces it: they are separate artifacts with separate installers,
+# and one of them was already six weeks out of step when this was written.
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+# MSRV = 1.88, and it took three attempts to get right — which is the whole
+# case for verifying it in CI instead of writing a number down.
+#
+#   1.85  from a local `cargo check --workspace`      -> wrong
+#   1.86  after --all-features pulled in icu_*        -> still wrong
+#   1.88  computed from the resolved graph            -> correct
+#
+# `cargo check` only reports the FIRST blocking set, so probing it iteratively
+# walks the floor upward one dependency at a time. The reliable way is to take
+# the max `rust_version` across `cargo metadata --all-features`: 240 packages
+# declare one, and `time 0.3.55` / `time-core 0.1.9` are the ceiling at 1.88.
+#
+# Every one of those floors comes from a transitive dependency, none from our
+# own code. It still has to be declared, because install.sh compiles on the
+# operator's machine: without it they get a manifest-parse error naming a crate
+# they have never heard of instead of "needs Rust >= 1.88".
+rust-version = "1.88"
+# These crates are an internal workspace, not crates.io packages — tp/tpd are
+# installed by install/install.sh building from this tree. Saying so is
+# accurate metadata AND stops an accidental `cargo publish`; cargo-deny also
+# needs it, because it assumes a publishable crate cannot carry the path-only
+# dependencies these use on each other.
+publish = false
+
+# Lints live HERE rather than in the gate's clippy invocation, for the same
+# reason rust-toolchain.toml pins the toolchain here: a developer running
+# `cargo clippy` locally must get the same answer CI does. A rule that only
+# exists in a workflow is a rule nobody can reproduce.
+#
+# print_stdout/print_stderr are not a style opinion. A print bypasses whatever
+# routing, redaction and correlation the process has — and this workspace has
+# NONE of those, which is the finding rather than the excuse: 176 print macros
+# and zero `tracing` uses. The lint cannot fix that. What it does is stop the
+# 177th from being added without anyone deciding to.
+#
+# Every existing site is exempted EXPLICITLY at the module that prints, with
+# the reason, rather than by leaving the lint off. Two kinds of exemption are
+# in the tree and they are not the same claim:
+#
+#   OUTPUT IS THE PRODUCT — crates/tp/src/cmd/*, bin/tpd.rs, build.rs, tests.
+#     A CLI that stopped writing to stdout would have no function. Permanent.
+#
+#   Daemon-side diagnostics route through `tp_core::logging` instead
+#     (crates/tp-core/src/logging.rs). The exemptions left standing are the
+#     output-is-the-product sites above; the library ones are gone, and so are
+#     the TODO(logger) markers that used to justify them.
+[workspace.lints.clippy]
+print_stdout = "warn"
+print_stderr = "warn"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+# SIGPIPE restoration (tp-core::exit_quietly_on_broken_pipe) and a kill(pid, 0)
+# liveness probe in tp-reach — both need the raw syscall, nothing more.
+libc = "0.2"
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+walkdir = "2"
+
+[profile.release]
+opt-level = 3
+lto = true

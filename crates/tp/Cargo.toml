@@ -1,0 +1,38 @@
+[package]
+name = "tp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "tp"
+path = "src/main.rs"
+
+[dependencies]
+tp-app = { path = "../tp-app" }
+tp-core = { path = "../tp-core" }
+tp-db = { path = "../tp-db" }
+tp-ingest = { path = "../tp-ingest" }
+tp-search = { path = "../tp-search" }
+tp-watch = { path = "../tp-watch" }
+tp-reach = { path = "../tp-reach" }
+tp-net = { path = "../tp-net" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+clap.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+# Tests only: they inspect and damage an index directly, which is exactly what
+# production code in this crate must not do (tp-db owns the SQL).
+rusqlite.workspace = true
+# Tests build a twinned pane the way ordinary work does, which needs the same
+# join path production uses rather than hand-written INSERTs.
+tp-db = { path = "../tp-db" }
+tp-reach = { path = "../tp-reach" }
+
+[lints]
+workspace = true

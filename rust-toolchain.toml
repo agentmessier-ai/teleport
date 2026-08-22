@@ -1,0 +1,27 @@
+# Pins the toolchain for every cargo invocation that goes THROUGH RUSTUP —
+# rustup reads this file automatically, so the CI gate needs no `toolchain`
+# input naming a version a second time.
+#
+# It does NOT reach a cargo that is not rustup's shim, and that is not
+# hypothetical: on this project's primary dev machine Homebrew's rust comes
+# first on PATH, so `cargo clippy` there runs 1.97.1 and this file is inert.
+# Both were checked while reviewing the commit that added it — clean on 1.97.1
+# AND on 1.88.0 — but only the second is what CI runs. If you are verifying a
+# gate locally, `~/.cargo/bin/cargo` is the one that honours this pin.
+#
+# 1.88.0 is what this repo ALREADY builds with. It was true only because it was
+# the rustup default on the CI host — a machine-level setting shared with every
+# other repository there, so one `rustup update` would have turned the pipeline
+# red with no commit in this repo. Pinning changes nothing today and makes
+# tomorrow deliberate.
+#
+# Bump deliberately: `clippy -D warnings` means a new release can turn a fresh
+# lint into a build failure, and you want that to happen in a PR you opened on
+# purpose rather than on the morning someone updated the runner.
+#
+# Matches rust-version = "1.88" in Cargo.toml, which is a different claim: that
+# is the MSRV floor gate-rust-msrv checks the code still compiles at.
+[toolchain]
+channel = "1.88.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

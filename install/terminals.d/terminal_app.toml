@@ -1,0 +1,18 @@
+# macOS Terminal.app. LLD §7.4 listed this backend from the start and it was
+# never implemented — an agent started from Terminal.app could be seen but
+# never woken. It is a FILE now rather than a third branch in `resolve_tty`,
+# which is the whole point of the descriptor.
+id         = "terminal_app"
+os         = "macos"
+kind       = "applescript"
+app        = "Terminal"
+
+# No `sessions` layer: Terminal.app's tab IS the addressable object, and its
+# tty is a property of the tab.
+containers = ["windows", "tabs"]
+tty_of     = "tty"
+
+# Terminal.app's verb takes the target as a trailing `in` clause rather than a
+# `tell`, which is exactly the kind of per-app difference this file exists to
+# absorb.
+send       = "do script {text} in {leaf}"

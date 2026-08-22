@@ -1,0 +1,17 @@
+# iTerm2. Migrated from the hand-written script in `wake::iterm_write_text`;
+# `the_iterm2_descriptor_reproduces_the_handwritten_script` proves this file
+# generates that script, which is what makes the mechanism trustworthy for
+# terminals nobody has verified by hand.
+id         = "iterm2"
+os         = "macos"
+kind       = "applescript"
+app        = "iTerm2"
+
+# iTerm2 nests one level deeper than Terminal.app: a tab holds sessions
+# (split panes), and the tty lives on the session, not the tab.
+containers = ["windows", "tabs", "sessions"]
+tty_of     = "tty"
+
+# `tell s to write text "…"`, NOT `write text "…" to s` — the latter is a
+# syntax error (-2741), verified in LLD §7.2. teleport supplies the quoting.
+send       = "tell {leaf} to write text {text}"

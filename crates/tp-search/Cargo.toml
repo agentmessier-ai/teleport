@@ -1,0 +1,25 @@
+[package]
+name = "tp-search"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tp-core = { path = "../tp-core" }
+tp-db = { path = "../tp-db" }
+tp-ingest = { path = "../tp-ingest" }
+anyhow.workspace = true
+serde_json.workspace = true
+regex = "1"
+
+[dev-dependencies]
+# The shipped descriptor is the thing under test, so it is read from disk
+# rather than reconstructed — a hand-built config would let the shipped file
+# and the engine disagree without failing anything.
+toml = "0.8"
+tempfile = "3"
+chrono.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,28 @@
+-- Process START TIME, as the thing that makes a conversation address stable.
+--
+-- A conversation is recognised across a compaction by (runtime, pid, cwd), and
+-- a pid alone is reusable, so recognition was bounded by a five-minute window
+-- since the conversation was last seen. That window is state teleport has to
+-- MAINTAIN: something must keep touching the row or the address expires while
+-- the process it names is still running. Measured on this machine the same
+-- night it shipped — one unchanging pid and cwd produced three conversation
+-- addresses in an hour, because the gaps between compactions were longer than
+-- the window. An address advertised as "stable — survives compaction" that
+-- rotates on how often you compact is worse than a segment id, which at least
+-- announces what it is.
+--
+-- `pid + start time` is a different KIND of fact. It is not maintained, it is
+-- observed: the OS already knows it and will answer at any moment, so there is
+-- no refresh to miss, no row to keep warm, and no daemon whose death expires
+-- the address. The window went away as a consequence; removing the dependency
+-- on `tpd` was the point.
+--
+-- Stored as the opaque string `ps -o lstart=` prints (read under LC_ALL=C), not
+-- a parsed timestamp. Identity here needs only equality — same incarnation,
+-- same string; a reused pid necessarily has a later start and a different one —
+-- and not parsing it removes a locale-dependent failure that would be silent.
+--
+-- NULL for rows written before this migration, and for any process whose start
+-- time could not be read. Those fall back to the old time window, so nothing
+-- that worked stops working.
+ALTER TABLE conversation ADD COLUMN pid_start TEXT;

@@ -1,0 +1,130 @@
+# OpenAI Codex CLI, as a declarative adapter.
+#
+# Install by copying to ~/.teleport/runtimes.d/codex.toml. Nothing in teleport
+# is compiled for codex — this file is the entire integration for the indexing
+# half, and it exists to prove that claim: codex was the first runtime whose
+# shape teleport had not already been built around, and every field below that
+# is not a default marks a place where the two shipped runtimes agreed with each
+# other by coincidence.
+#
+# Verified against real transcripts written by codex-cli 0.145.0.
+#
+# The rollout format is NOT a documented stable interface — OpenAI's own hooks
+# documentation says so in as many words. Treat this as best-effort discovery,
+# and prefer the hook path (SessionStart hands teleport `session_id`, `cwd` and
+# `transcript_path` directly) for anything that must not silently stop working.
+
+id = "codex"
+name = "Codex"
+root = "~/.codex/sessions"
+
+# `sessions/YYYY/MM/DD/rollout-*.jsonl`. Both shipped runtimes use exactly one
+# level (`root/<project>/<file>`), which is the default.
+dir_depth = 3
+
+# `rollout-2026-04-08T09-32-49-019d6df0-7a4b-7120-a4fd-51736a970ed6.jsonl`.
+# Neither `stem` nor `after_underscore` can reach that id: the stem is not the
+# id, and the timestamp contains the same `-` the UUID does.
+native_id = "trailing_uuid"
+
+# Every field below is one level deeper than the shipped runtimes put it.
+type_path = "payload.type"
+cwd_path = "payload.cwd"       # written once, on the session_meta line
+ts_path = "timestamp"
+content_path = "payload.content"
+
+role_source = "message_role"
+role_path = "payload.role"
+# `developer` is codex's channel for injected environment and permission
+# preamble. It is genuinely part of the transcript and is kept as user-side
+# content rather than dropped — teleport reports what the record says.
+user_roles = ["user", "developer"]
+assistant_roles = ["assistant"]
+
+# Two tags for one concept: codex names the block by direction, and the field
+# holding the text is `text` in both cases — the shipped runtimes' block type
+# and field name happen to coincide, which is what made this look like one
+# setting instead of two.
+text_block = ["output_text", "input_text"]
+text_field = "text"
+tool_block = "function_call"
+tool_name_field = "name"
+tool_input_field = "arguments"
+
+# Usage is NOT on the message: codex emits it as a separate `event_msg` /
+# `token_count` record. Left unset rather than pointed somewhere plausible —
+# a wrong number is worse than an absent one.
+
+# `payload.type == "message"` is NOT enough on its own: `event_msg` payloads
+# carry their own `type`, so token-count and task-lifecycle records would be
+# read as conversation. The outer discriminator has to be required too.
+[[require]]
+path = "type"
+equals = "response_item"
+
+[capabilities]
+scannable = true
+pane = true
+process_match = "codex"
+# What teleport types into a codex pane to make it drain its inbox.
+#
+# The default is `/tp inbox`, a slash command Claude Code and pi both provide —
+# which made it look like teleport's vocabulary when it is really theirs. codex
+# has no such command and answers `Unrecognized command '/tp'`: the wake lands
+# and the session cannot act on it. Observed on a real codex session.
+#
+# Plain English instead of a command, because codex reaches teleport through MCP
+# tools rather than a slash command: the sentence is what makes the model call
+# `teleport_inbox`. It is still a FIXED string from this descriptor — no part of
+# any message crosses the pane (LLD §7.3).
+control_string = "Check your teleport inbox: call the teleport_inbox tool, do what each message asks, and answer it with teleport_reply."
+multiplexed = false
+heartbeats = false
+
+# codex emits reasoning as its OWN `response_item`, with no `payload.role` — so
+# the role mapping above drops it, and every reasoning record was invisible to
+# teleport (0 of 43 indexed turns carried thinking, against 15 records on disk).
+#
+# Both halves are needed because they are different facts:
+#   summary            → readable reasoning, when the model produced any
+#   encrypted_content  → reasoning happened and CANNOT be read
+#
+# On the machine this was written on, all 15 records are the second kind:
+#   {"type":"reasoning","id":"rs_…","summary":[],
+#    "encrypted_content":"gAAAAABqgTJt…","internal_chat_message_metadata_passthrough":{…}}
+#
+# Storing "" for those would assert that no reasoning happened, which the file
+# contradicts. `thinking_state = 'opaque'` is the honest record.
+[[reasoning_rules]]
+entry_type  = "reasoning"
+text_path   = "payload.summary"
+block_type  = "summary_text"
+opaque_path = "payload.encrypted_content"
+
+# Compaction. POSITIONAL: codex writes a `compacted` rollout line whose
+# `replacement_history` IS the complete post-compaction context, inlined, with
+# the superseded lines left in the file. Its own reader
+# (codex-rs/rollout/src/model_context.rs) reverse-scans to the newest such line
+# and treats it plus everything after as current — which is exactly a positional
+# boundary.
+#
+# The wire shape is source-verified, the BEHAVIOUR is not. `RolloutItemWire` is
+# `#[serde(tag = "type", rename_all = "snake_case")]` with a `Compacted` variant
+# (history/src/rollout_payload.rs:20-38), and `RolloutLine` flattens the item
+# (history/src/lib.rs:198-205) — so `type` really is a root key holding
+# `"compacted"`. What is untested is that it fires, because there are zero such
+# lines in the eight rollouts on this machine. `[[require]]` above REJECTS this
+# line, and the boundary survives only because compaction is checked before
+# `require` is applied; that ordering is pinned by
+# `a_compaction_marker_that_fails_require_is_still_a_boundary`.
+#
+# The `message` (codex's distilled summary) is NOT indexed as a turn — unlike
+# pi's, which is. No recall hole either way: codex leaves the superseded lines in
+# the file, so their content stays searchable and merely reads as `superseded`.
+#
+# `ThreadRolledBack { num_turns }` is codex's OTHER supersession marker and is
+# deliberately not handled: it says how many user turns to drop without naming
+# them, so honouring it needs turn re-segmentation rather than a boundary.
+[[compaction_markers]]
+path = "type"
+equals = "compacted"

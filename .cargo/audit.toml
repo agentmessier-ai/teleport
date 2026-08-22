@@ -1,0 +1,16 @@
+# cargo-audit reads THIS file, not deny.toml — cargo-deny and cargo-audit are
+# separate tools with separate config, and both run in the Rust gate. Ignoring
+# an advisory in one does nothing for the other. Found the hard way in CI on
+# 2026-08-14, after deny.toml alone was verified locally and the audit job
+# still failed.
+#
+# Keep this list identical to deny.toml's [advisories].ignore, and see there
+# for the reasoning on each entry. Both are "unmaintained" notices on
+# second-level transitive deps, never vulnerabilities:
+#   RUSTSEC-2024-0384  instant         <- notify-types <- notify v7 <- tp-watch
+#   RUSTSEC-2025-0134  rustls-pemfile  <- axum-server  <- tp-net
+[advisories]
+ignore = [
+  "RUSTSEC-2024-0384",
+  "RUSTSEC-2025-0134",
+]

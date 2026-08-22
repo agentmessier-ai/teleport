@@ -1,0 +1,16 @@
+-- `rejected` and `revoked` are no longer states a relationship can be in.
+-- Refusing a peer now deletes its row (tp-net/src/pairing.rs, PairingStatus),
+-- so "not trusted" is spelled "absent" and these rows describe a state the
+-- code can no longer produce or read.
+--
+-- Deleting them is the migration that MATCHES what they meant: every row here
+-- is a device a human already refused, and the new model expresses exactly
+-- that by having no row. Left in place they would be invisible instead —
+-- `pairings()` drops trust values it does not recognise — which is the worse
+-- outcome, because an unreadable row still occupies its device_id and would
+-- silently take part in the next INSERT ... ON CONFLICT.
+--
+-- Nothing else references these rows: `session.machine_id` is only ever
+-- written for this machine's own ingest, and `message.from_machine`
+-- deliberately carries no foreign key.
+DELETE FROM machine WHERE trust IN ('rejected', 'revoked');

@@ -1,0 +1,30 @@
+[package]
+name = "tp-reach"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Back after being removed this morning for being declared-but-unused: it is
+# used now, for the one shared `now_ms`.
+tp-core = { path = "../tp-core" }
+tp-db = { path = "../tp-db" }
+anyhow.workspace = true
+uuid.workspace = true
+libc.workspace = true
+# Terminal backends are declared in `terminals.d/*.toml` rather than compiled
+# in, the same move `tp-ingest` made for agent runtimes — see `terminal.rs`.
+serde.workspace = true
+toml = "0.8"
+
+# rusqlite is deliberately a DEV dependency, not a runtime one. Every query
+# against `live_session` and `message` now lives in `tp_db::reach`, next to the
+# migrations that define those columns; leaving rusqlite out of the production
+# dependency set is what stops the SQL from drifting back out here one statement
+# at a time. Tests still reach for it to set up and assert on rows directly.
+[dev-dependencies]
+rusqlite.workspace = true
+tempfile = "3"
+[lints]
+workspace = true

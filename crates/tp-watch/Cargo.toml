@@ -1,0 +1,20 @@
+[package]
+name = "tp-watch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tp-core = { path = "../tp-core" }
+tp-db = { path = "../tp-db" }
+tp-ingest = { path = "../tp-ingest" }
+anyhow.workspace = true
+notify = "7"
+
+[dev-dependencies]
+tempfile = "3"
+chrono.workspace = true
+serde_json.workspace = true
+[lints]
+workspace = true

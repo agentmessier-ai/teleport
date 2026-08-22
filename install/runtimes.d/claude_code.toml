@@ -1,0 +1,114 @@
+# Claude Code transcripts. This file IS the claude_code implementation: it is
+# compiled into the binary via `include_str!` (decl.rs), and this installed copy
+# exists so a user can read and override it. There is no hand-written adapter
+# behind it — there was, it was proven equivalent, and it was deleted.
+id = "claude_code"
+root = "~/.claude/projects"
+name = "Claude Code"
+native_id = "stem"                 # <uuid>.jsonl — the stem IS the session id
+role_source = "entry_type"         # role is the entry's own `type`
+user_roles = ["user"]
+assistant_roles = ["assistant"]
+ts_path = "timestamp"
+content_path = "message.content"
+usage_in_path = "message.usage.input_tokens"
+usage_out_path = "message.usage.output_tokens"
+text_block = "text"
+thinking_block = "thinking"
+tool_block = "tool_use"
+tool_name_field = "name"
+tool_input_field = "input"
+
+# Source identity/lineage/cost (docs/data-model-v2.md). This is the LIVE path —
+# a field absent here is a field NOT captured, so it must match the built-in.
+uuid_path = "uuid"
+parent_uuid_path = "parentUuid"
+
+# Subagent records. `isSidechain: true` marks a turn the Task tool's subagent
+# wrote, not the operator — 23,485 of the 554,704 turns indexed on this machine,
+# every one of which previously read as if the operator had said it.
+#
+# Measured, because the field name misleads: those records live ONLY in
+# `agent-*.jsonl` (326 files here), and not one of those files contains a
+# `false`. It is a whole-session property in practice, not a branch inside a
+# parent transcript. `isSidechain` itself appears on 619,977 records.
+sidechain_path = "isSidechain"
+
+# Subagent transcripts are NOT beside their parent. They live at
+# `<project>/<parent-session-uuid>/subagents/agent-<id>.jsonl`, and a subagent
+# that spawns its own nests one level further: 204 files at the first extra
+# level and 130 at the second on this machine, 23,899 records that the default
+# one-level walk never saw. That is also why `sidechain_path` above read `false`
+# for every indexed turn — the only files carrying `true` were not being found.
+#
+# A directory NAME, not "recurse into everything": that first attempt also swept
+# up `subagents/workflows/wf_*/journal.jsonl`, which are workflow logs rather
+# than transcripts, and eight of them share the stem `journal` so they collapsed
+# onto one bogus session. The immediate parent directory separates them exactly.
+nested_dir = "subagents"
+model_path = "message.model"
+cache_read_path = "message.usage.cache_read_input_tokens"
+cache_creation_path = "message.usage.cache_creation_input_tokens"
+
+# What this harness is, and what teleport must not assume about it
+# (docs/reach-provider.md). These four defaults ARE today's behaviour, stated
+# explicitly rather than left implicit — a one-session-per-process runtime the
+# process scan can find and type into, which cannot renew its own presence
+# (its SessionStart hook fires once; there is no periodic event, which is why
+# the scan exists).
+
+[capabilities]
+scannable   = true    # `ps` + tmux/iTerm2 can find it
+multiplexed = false   # one process : one session
+heartbeats  = false   # cannot renew presence — the scan is authoritative
+pane        = true    # has a tty to type the control string into
+# Substring, not equality: a locally built dev binary named `claude-local`
+# must still match — verified live.
+process_match = "claude"
+
+# Session titles Claude Code STATES, rather than the one teleport used to invent
+# by truncating the first user message. Both are their own JSONL entry types,
+# observed on disk: `ai-title` appears 16,839 times across this machine's
+# transcripts, `custom-title` zero times (it is what `/rename` writes, and
+# nothing here has been renamed).
+#
+# User beats AI regardless of append order. teleport does not depend on reading
+# that rule anywhere: it resolves at READ time in SQL
+# (`COALESCE(title_user, title_ai, title_derived)`), so a rename arriving hours
+# into a session wins immediately without a rewrite. The precedence is
+# `SessionMeta`'s, not this file's — declaring `source` is what selects it.
+[[title_rules]]
+entry_type = "custom-title"   # /rename, or --name
+title_path = "customTitle"
+source     = "user"
+
+[[title_rules]]
+entry_type = "ai-title"       # model-generated; the record does not say which
+title_path = "aiTitle"
+source     = "ai"
+
+# Where the conversation's context was replaced. Everything at or before this
+# point is still SEARCHABLE but is no longer what the model sees, and teleport
+# had no way to say so — a hit could not tell a live exchange from one compacted
+# away hours earlier.
+#
+# BOTH conditions are required. The marker is `type:"system"` AND
+# `subtype:"compact_boundary"`; matching the type alone would treat every system
+# message as a compaction. Verified against a real record:
+#   {"type":"system","subtype":"compact_boundary","parentUuid":null,
+#    "logicalParentUuid":"05daecf4-…",
+#    "compactMetadata":{"trigger":"auto","preTokens":998874,"postTokens":30980}}
+#
+# Note `parentUuid` is null on these, with the real parent in
+# `logicalParentUuid` (present in 21 transcripts on this machine, all around
+# compaction boundaries) — so the boundary TRUNCATES the resume chain. Measured:
+# walking `parentUuid` across the corpus breaks at every boundary, which is why
+# teleport tracks the boundary itself rather than trying to follow the chain
+# across it.
+[[compaction_markers]]
+path = "type"
+equals = "system"
+
+[[compaction_markers]]
+path = "subtype"
+equals = "compact_boundary"

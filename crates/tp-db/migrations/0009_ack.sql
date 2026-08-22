@@ -1,0 +1,20 @@
+-- The read/ack split (LLD reach): `read_at` means a message was SHOWN to an
+-- inbox call; it never meant the target finished acting on it — those were
+-- the same instant, because `tp_app::drain` marks read the moment it fetches.
+-- An agent interrupted between fetching and acting (context compaction, a
+-- crash, a killed process) left the message with `read_at` set and no trace
+-- that it was never actually handled: gone from every inbox query, and
+-- nothing else in the schema recorded that it had been.
+--
+-- `acked_at` is a SEPARATE, later confirmation — explicit, not implied by
+-- being shown. A message with `read_at` set and `acked_at` NULL is exactly
+-- the state that bug produces: delivered, not confirmed. It stays queryable
+-- forever until something acks it (`tp ack <id>` / `teleport_ack`), which is
+-- the recovery path that state didn't have before this column existed.
+--
+-- NULL for every row written before this migration, including already-read
+-- ones — correctly: nothing in the old schema recorded whether an old message
+-- was ever truly finished, so the honest state for all of them is "unknown,
+-- pending". They become visible under the new pending-ack view rather than
+-- silently declared handled by a column that didn't exist when they arrived.
+ALTER TABLE message ADD COLUMN acked_at INTEGER;

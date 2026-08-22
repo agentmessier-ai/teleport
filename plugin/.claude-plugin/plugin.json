@@ -1,0 +1,29 @@
+{
+  "name": "teleport",
+  "displayName": "Teleport",
+  "description": "Cross-agent session search, cross-machine federation (paired, signed, encrypted), and mailbox delivery between Claude Code sessions \u2014 install/install.sh installs the `tp`/`tpd` binaries this plugin talks to.",
+  "version": "0.2.0",
+  "author": {
+    "name": "agentmessier-ai"
+  },
+  "homepage": "https://github.com/agentmessier-ai/teleport",
+  "repository": "https://github.com/agentmessier-ai/teleport",
+  "license": "MIT",
+  "keywords": [
+    "teleport",
+    "cross-session",
+    "cross-machine",
+    "search",
+    "federation",
+    "mcp"
+  ],
+  "mcpServers": {
+    "teleport": {
+      "command": "tp",
+      "args": [
+        "mcp"
+      ]
+    }
+  },
+  "hooks": "./hooks/hooks.json"
+}

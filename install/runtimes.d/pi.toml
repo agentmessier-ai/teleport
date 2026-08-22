@@ -1,0 +1,119 @@
+# pi agent harness. Format per pi's published spec (packages/coding-agent/docs/
+# session-format.md, v3). This file IS the pi implementation: it is compiled
+# into the binary via `include_str!` (decl.rs), and this installed copy exists
+# so a user can read and override it. There is no hand-written adapter behind
+# it — there was, it was proven equivalent, and it was deleted.
+id = "pi"
+root = "~/.pi/agent/sessions"
+name = "pi"
+native_id = "after_underscore"     # <timestamp>_<uuid>.jsonl
+role_source = "message_role"       # role lives at message.role, not entry type
+# toolResult maps to user to mirror Claude Code, where tool results arrive
+# inside `type: "user"` records — keeps both runtimes symmetric under one query.
+user_roles = ["user", "toolResult", "bashExecution", "custom"]
+assistant_roles = ["assistant", "branchSummary", "compactionSummary"]
+ts_path = "timestamp"
+
+# Where a compaction's KEPT range starts (see `[[compaction_markers]]` below).
+#
+# Must live up here with the other root keys. In TOML a bare key after a table
+# header belongs to THAT table, so putting it next to the marker it describes
+# makes it a field of `[[title_rules]]` or `[[compaction_markers]]` instead —
+# where it was silently dropped and the boundary fell back to positional. Caught
+# by checking real data: the anchor entry and the 15/43/68 entries after it came
+# back `superseded`, which is exactly the positional answer.
+compaction_keeps_from = "firstKeptEntryId"
+content_path = "message.content"
+usage_in_path = "message.usage.input"
+usage_out_path = "message.usage.output"
+text_block = "text"
+thinking_block = "thinking"        # thinkingSignature is never read, so never indexed
+tool_block = "toolCall"
+tool_name_field = "name"
+tool_input_field = "arguments"
+text_fallbacks = ["message.summary"]
+
+# Source identity/lineage (docs/data-model-v2.md). Entry-level in pi: `id`,
+# `parentId`, `modelId` (not message.model — modelId is present on every entry
+# type, so it is one dotted path). pi's usage block has no cache-token fields.
+uuid_path = "id"
+parent_uuid_path = "parentId"
+model_path = "modelId"
+
+# Summary-bearing entries are indexed deliberately: a compaction summary is the
+# distilled content of messages pi no longer replays, so skipping it would put a
+# recall hole in exactly the long sessions search matters most for. `custom` is
+# NOT here — pi's spec says it never reaches the model.
+[[entry_rules]]
+entry_type = "compaction"
+role = "assistant"
+text_path = "summary"
+
+[[entry_rules]]
+entry_type = "branch_summary"
+role = "assistant"
+text_path = "summary"
+
+[[entry_rules]]
+entry_type = "custom_message"
+role = "user"
+text_path = "content"
+
+# bashExecution keeps no `content`; its payload is the command and its output.
+[text_join]
+prefix = "$ "
+paths = ["message.command", "message.output"]
+sep = "\n"
+
+# What this harness is, and what teleport must not assume about it
+# (docs/reach-provider.md). These four defaults ARE today's behaviour, stated
+# explicitly rather than left implicit — a one-session-per-process runtime the
+# process scan can find and type into, which cannot renew its own presence
+# (its SessionStart hook fires once; there is no periodic event, which is why
+# the scan exists).
+
+[capabilities]
+scannable   = true    # `ps` + tmux/iTerm2 can find it
+multiplexed = false   # one process : one session
+heartbeats  = false   # cannot renew presence — the scan is authoritative
+pane        = true    # has a tty to type the control string into
+# `=` anchors an EXACT match. Unlike claude, a substring would false-positive
+# on `pip`, `gpio-tool`, and anything else containing "pi".
+process_match = "=pi"
+
+# pi's native session name. It is an ENTRY in the session tree, not a header
+# field, so it is versioned over time — `getSessionName()` resolves it by
+# reverse scan (packages/coding-agent/src/core/session-manager.ts:1149-1160) and
+# treats a whitespace value as CLEARING the name, which `SessionMeta::set_title`
+# reproduces.
+#
+# Verified against a real one on disk; the shape is:
+#   {"type":"session_info","id":"ea2f1441","parentId":"None",
+#    "timestamp":"2026-08-14T17:17:21.439Z","name":"a-name-the-user-typed"}
+#
+# `source = "user"` because pi has no model-generated name: the declaration is
+# `SessionInfoEntry { type: "session_info"; name?: string }` (session-manager.ts
+# :117-121), commented "e.g., user-defined display name", and nothing else writes
+# it.
+[[title_rules]]
+entry_type = "session_info"
+title_path = "name"
+source     = "user"
+
+# Compaction. ANCHORED, not positional, and the difference is load-bearing:
+# pi's `compaction` entry carries `firstKeptEntryId`, and in all three real
+# sessions on this machine that id points EARLIER than the marker itself — by
+# 15, 43 and 68 entries. Reading the marker's own position as the boundary would
+# have reported that many still-live entries as superseded, which is the wrong
+# direction to be wrong in.
+#
+# `buildContextEntries()` walks leaf→root and, on hitting a compaction, includes
+# the compaction plus entries from `firstKeptEntryId` FORWARD — so the anchor is
+# kept, which is why the writer uses `<` rather than `<=`.
+#
+# Note the entry is ALSO indexed as a turn (see `entry_rules` above): its
+# `summary` is the distilled content of what pi no longer replays, and it is new
+# context rather than superseded — it lands after its own boundary.
+[[compaction_markers]]
+path = "type"
+equals = "compaction"

@@ -1,0 +1,63 @@
+# Rust
+/target
+**/*.rs.bk
+
+# macOS
+.DS_Store
+
+# Claude Code's PROJECT-level config. Nothing reads the copy in this repo —
+# `install/setup-hooks.py` writes to ~/.claude/settings.json, in your home.
+# The tracked file here was an empty `{}`, and leaving it would have made this
+# directory the next place local settings (permissions, hooks) accumulate and
+# ship to everyone who clones. The plugin manifest is separate and IS part of
+# the product: .claude-plugin/marketplace.json stays tracked.
+/.claude/
+
+# Swift / the menu bar panel
+/panel/.build/
+/panel/*.app/
+
+# Local dev-tool caches. Each of these tools also drops a .gitignore inside its
+# own directory, which is not enough to rely on: Entrography's says `*` with no
+# `!.gitignore` exception, so it ignores ITSELF and never reaches the repo — it
+# protects only a machine that has already run the tool. That gap is not
+# hypothetical. `.entrography/index.db` (4.8 MB) was committed seven times
+# before anyone noticed, the first time a full day before the tool started
+# writing its own ignore file at all.
+#
+# Listing them here instead means the rule is versioned: it holds for a fresh
+# clone, for a collaborator, and for CI — none of which have run the tool.
+/.entrography/
+/.codegraph/
+
+# Playwright MCP debugging artifacts: browser console logs and accessibility-
+# tree snapshots. These are session-local output from driving a browser with
+# the playwright MCP server; they name localhost URLs and DOM structure, not
+# project content, but they are junk and the directory arrived exactly the way
+# .entrography did — as a tool output nobody excluded before its first `git add`.
+/.playwright-mcp/
+
+# Editor / IDE local state. None of these are project content; they are a
+# contributor's local layout and the next contributor's will differ. Listed
+# here rather than left to each editor's own ignore file for the same reason
+# the tool caches are: the rule has to hold on a fresh clone.
+/.vscode/
+/.idea/
+*.swp
+*.swo
+*~
+.#*
+
+# OS junk that shows up on shared filesystems.
+Thumbs.db
+ehthumbs.db
+
+# Backstop. No database or WAL sidecar belongs in this repo from anywhere in
+# the tree; the entries above are only the tools we know about today, and the
+# next one will arrive the same way — as an untracked directory nobody looks
+# inside before `git add -A`.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3

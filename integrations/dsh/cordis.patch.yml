@@ -1,0 +1,10 @@
+# The layer this bundle contributes when a profile lists it. Applied before the
+# user's own cordis.patch.yml, so a user can override or disable this row
+# without editing anything teleport ships.
+#
+# The row references the package BY NAME, not by a relative path: Node
+# resolution finds the installed code that way, which is what makes
+# `dsh plugin add` and a published npm package behave identically.
+- insert:
+    - id: teleport
+      name: '@teleport/dsh'

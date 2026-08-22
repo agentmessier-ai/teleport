@@ -1,0 +1,50 @@
+{
+  "_comment": [
+    "Session registration, declared by the plugin rather than written into the",
+    "user's settings.json by install.sh.",
+    "",
+    "These two hooks are what makes a Claude Code session REACHABLE: `tp register",
+    "--from-hook` reads the event JSON on stdin, takes session_id and cwd from it,",
+    "walks up the process tree for the hosting pid and tty, and writes the",
+    "live_session row that `tp ask` resolves against. Without them `resolve()`",
+    "finds no row and returns Target::NotLive, so a message lands in the mailbox",
+    "and never wakes anything.",
+    "",
+    "$HOME expands here — verified against this Claude Code build rather than",
+    "assumed, along with the fact that a plugin hook receives the identical event",
+    "JSON a settings.json hook does. The absolute path is deliberate: ~/.local/bin",
+    "is not guaranteed to be on PATH for a hook process, and install.sh's own",
+    "closing line still says so.",
+    "",
+    "Plugin hooks run ALONGSIDE user hooks, not instead of them, so a machine",
+    "still carrying the older setup-hooks.py entries registers twice per session.",
+    "Measured rather than assumed: against an existing index that is fine, 3 of 3",
+    "concurrent rounds exit 0, because `register` is an upsert keyed on session id",
+    "and Db::open sets busy_timeout to 5s. The one case that DOES lose is two",
+    "processes creating and migrating a brand-new index at the same moment — the",
+    "very first session after a fresh install, where one side can see 'database is",
+    "locked'. It self-corrects on the next session, and the mailbox is unaffected."
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.local/bin/tp\" register --from-hook"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.local/bin/tp\" unregister --from-hook"
+          }
+        ]
+      }
+    ]
+  }
+}
